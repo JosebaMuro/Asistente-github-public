@@ -14,7 +14,5 @@ jobs:
           V=${{ inputs.version }}
           mkdir salida && cp docs/*.pdf salida/
           git archive --format=zip --prefix=cerebro-local-${V#v}/ -o salida/cerebro-local-${V#v}-codigo-fuente.zip HEAD
-      - uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ inputs.version }}
-          files: "salida/*"
+      - run: gh release upload "${{ inputs.version }}" salida/* --clobber
+        env: { GH_TOKEN: "${{ github.token }}", GH_REPO: "${{ github.repository }}" }
