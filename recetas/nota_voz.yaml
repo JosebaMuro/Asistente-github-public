@@ -1,0 +1,39 @@
+nombre: Nota de voz
+descripcion: Transcribe una nota de voz corta, la clasifica como tarea, idea o recordatorio y la guarda en la memoria al momento.
+cuando:
+  extensiones: [.m4a, .ogg, .opus, .webm, .wav, .mp3]
+  # Se usa cuando el móvil la envía con el botón "Nota de voz" o cae en la carpeta bandeja/nota_voz
+prioridad: 20
+
+pasos:
+  - transcribir:
+      separar_voces: false
+
+  - preguntar_llm:
+      perfil: rapido
+      guardar_como: clasificada
+      max_tokens: 300
+      prompt: |
+        Esto es una nota de voz que me dejé a mí mismo:
+        "{transcripcion}"
+        Responde en español con dos líneas:
+        Tipo: tarea | idea | recordatorio | otro
+        Resumen: (una frase clara)
+
+  - guardar_nota:
+      carpeta: notas_voz
+      titulo: "Nota de voz {fecha} {hora}"
+      contenido: |
+        # Nota de voz {fecha} {hora}
+
+        {clasificada}
+
+        > {transcripcion}
+
+  - recordar:
+      titulo: "Nota de voz {fecha} {hora}"
+      contenido: "{nota}"
+      de_noche: false       # notas cortas: a la memoria al momento
+
+  - avisar:
+      mensaje: "Nota guardada. {clasificada}"

@@ -1,0 +1,18 @@
+{
+  "name": "Cerebro local",
+  "short_name": "Cerebro",
+  "description": "Tu memoria personal 100% local, con el grafo como avatar.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#090c17",
+  "theme_color": "#090c17",
+  "icons": [
+    { "src": "/icono.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "share_target": {
+    "action": "/",
+    "method": "GET",
+    "params": { "title": "title", "text": "text", "url": "url" }
+  }
+}

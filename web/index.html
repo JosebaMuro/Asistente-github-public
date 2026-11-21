@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0e1a">
+<title>Cerebro local</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icono.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/estilo.css">
+</head>
+<body>
+<div class="app">
+  <header class="barra">
+    <div class="marca">
+      <h1>Cerebro local</h1>
+      <span class="chip" id="modo">conectando…</span>
+    </div>
+    <div class="barra-der">
+      <span class="conexion" id="conexion"><span class="punto"></span><span id="conexion-texto">Conectando</span></span>
+      <label class="interruptor"><input type="checkbox" id="hablar"> Hablar respuestas</label>
+    </div>
+  </header>
+
+  <aside class="panel captura" aria-label="Capturar">
+    <h2>Capturar</h2>
+    <div class="botones-captura">
+      <button type="button" class="boton grande" id="btn-reunion"><span class="ico">●</span><span><b>Grabar reunión</b><small>Transcribe, resume y aprende</small></span></button>
+      <button type="button" class="boton grande" id="btn-nota"><span class="ico">◉</span><span><b>Nota de voz</b><small>Pulsa para empezar y para terminar</small></span></button>
+      <label class="boton grande" for="archivos"><span class="ico">⇪</span><span><b>Subir archivos</b><small>Audio, fotos, capturas, textos</small></span></label>
+      <input type="file" id="archivos" multiple hidden>
+      <input type="file" id="audio-movil" accept="audio/*" capture hidden>
+      <button type="button" class="boton grande" id="btn-texto"><span class="ico">¶</span><span><b>Pegar texto</b><small>Un enlace, un correo, una idea</small></span></button>
+    </div>
+    <div class="grabando" id="grabando" hidden>
+      <span class="rec"></span><span id="grabando-texto">Grabando 00:00</span>
+      <button type="button" class="boton peligro" id="btn-parar">Parar y enviar</button>
+    </div>
+    <form class="pegar" id="form-texto" hidden>
+      <label for="texto-pegado">Texto o enlace</label>
+      <textarea id="texto-pegado" rows="5" placeholder="Pega aquí lo que quieras guardar"></textarea>
+      <div class="fila"><button type="submit" class="boton primario">Guardar</button><button type="button" class="boton" id="cancelar-texto">Cancelar</button></div>
+    </form>
+    <p class="aviso-mic" id="aviso-mic" hidden></p>
+
+    <div class="cabecera-lista">
+      <h2>Bandeja</h2>
+      <button type="button" class="enlace" id="btn-aprender" title="Procesar ya la memoria pendiente">Aprender ahora</button>
+    </div>
+    <p class="pista" id="pendiente"></p>
+    <ul class="trabajos" id="trabajos"></ul>
+  </aside>
+
+  <main class="escenario">
+    <div class="lienzo" id="lienzo">
+      <canvas id="avatar" role="img" aria-label="Avatar: el grafo de tu memoria. Arrastra para girarlo y toca un nodo."></canvas>
+      <div class="leyenda" id="leyenda"></div>
+      <div class="estado-avatar" id="estado-avatar"><span class="pulso"></span><span id="estado-texto">En reposo</span></div>
+      <div class="preparacion" id="preparacion" hidden><span id="prep-texto"></span><div class="barra-prog"><i id="prep-barra"></i></div></div>
+      <div class="vacio" id="vacio" hidden>
+        <b>Tu memoria está vacía</b>
+        <span>Graba una reunión o sube un archivo. El avatar crece con cada cosa que aprende.</span>
+      </div>
+    </div>
+    <section class="chat" aria-label="Conversación">
+      <div class="registro" id="registro" aria-live="polite"></div>
+      <form class="preguntar" id="form-pregunta">
+        <button type="button" class="boton mic" id="btn-mic" title="Preguntar por voz" aria-label="Preguntar por voz">🎙</button>
+        <input id="pregunta" type="text" autocomplete="off" placeholder="Pregunta a tu memoria…" aria-label="Pregunta">
+        <button type="submit" class="boton primario">Preguntar</button>
+      </form>
+    </section>
+  </main>
+
+  <aside class="panel lateral" aria-label="Detalle y recetas">
+    <div class="pestanas" role="tablist">
+      <button type="button" role="tab" class="pestana activa" data-p="detalle">Detalle</button>
+      <button type="button" role="tab" class="pestana" data-p="recetas">Recetas</button>
+      <button type="button" role="tab" class="pestana" data-p="notas">Notas</button>
+    </div>
+    <section class="vista" id="v-detalle"></section>
+    <section class="vista" id="v-recetas" hidden>
+      <div class="fila">
+        <select id="sel-receta" aria-label="Receta"></select>
+        <button type="button" class="boton" id="nueva-receta">Nueva</button>
+      </div>
+      <p class="pista" id="desc-receta"></p>
+      <textarea id="editor-receta" spellcheck="false" aria-label="Contenido de la receta (YAML)"></textarea>
+      <div class="fila">
+        <button type="button" class="boton primario" id="guardar-receta">Guardar receta</button>
+        <span class="resultado" id="resultado-receta"></span>
+      </div>
+      <details class="ayuda">
+        <summary>Pasos disponibles</summary>
+        <ul>
+          <li><code>transcribir</code> voz a texto con quién habla (<code>separar_voces</code>)</li>
+          <li><code>preguntar_llm</code> pide algo al modelo (<code>perfil</code>, <code>prompt</code>, <code>guardar_como</code>, <code>trocear</code>)</li>
+          <li><code>describir_imagen</code> lee una foto con el modelo de visión</li>
+          <li><code>guardar_nota</code> crea una nota Markdown (<code>titulo</code>, <code>contenido</code>, <code>carpeta</code>)</li>
+          <li><code>recordar</code> añade a Cognee (<code>de_noche: true</code> para dejarlo a la hora nocturna)</li>
+          <li><code>avisar</code> muestra un aviso en todas las pantallas</li>
+        </ul>
+        <p>Variables: <code>{archivo}</code> <code>{nombre}</code> <code>{fecha}</code> <code>{hora}</code> <code>{transcripcion}</code> <code>{duracion}</code> <code>{personas}</code> <code>{contenido}</code> <code>{nota}</code> y lo que guardes con <code>guardar_como</code>.</p>
+      </details>
+    </section>
+    <section class="vista" id="v-notas" hidden>
+      <ul class="notas" id="lista-notas"></ul>
+      <pre class="nota" id="nota-abierta" hidden></pre>
+    </section>
+  </aside>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+<script src="/avatar.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+CEREBRO LOCAL para Windows (portable, no se instala)
+====================================================
+
+1. Descomprime esta carpeta donde quieras (mejor en un disco con 20 GB libres).
+2. Doble clic en Cerebro.bat. Se abre http://localhost:8765
+   La primera vez descarga los modelos (unos 10 GB). Verás el progreso en el avatar.
+3. Para que arranque solo al encender el PC, sin iniciar sesión:
+   clic derecho en instalar-servicio.bat > Ejecutar como administrador.
+4. En el móvil: instala Cerebro.apk y escribe la dirección que muestra
+   instalar-servicio.bat (http://IP-de-tu-PC:8765).
+
+Terminal: Cerebro-TUI.bat
+GPU: driver de NVIDIA 576 o superior (CUDA 12.9). Sin él usa Vulkan o CPU.
+Manuales completos: Manual-de-usuario.pdf y Manual-tecnico.pdf

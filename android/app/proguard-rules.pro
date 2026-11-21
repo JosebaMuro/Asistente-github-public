@@ -1,0 +1,1 @@
+-keepclassmembers class local.cerebro.Puente { @android.webkit.JavascriptInterface <methods>; }

@@ -1,0 +1,53 @@
+nombre: Reunión
+descripcion: Transcribe la grabación separando quién habla, saca resumen, decisiones y tareas, la guarda como nota y la añade a la memoria esta noche.
+cuando:
+  extensiones: [.m4a, .mp3, .wav, .ogg, .opus, .webm, .aac, .flac]
+prioridad: 10            # la receta por defecto para audios sueltos en la bandeja
+
+pasos:
+  - transcribir:
+      separar_voces: true
+
+  - preguntar_llm:
+      perfil: texto
+      entrada: transcripcion
+      trocear: 2500        # palabras por trozo; cabe en 8K de contexto
+      guardar_como: resumen
+      max_tokens: 900
+      prompt: |
+        Esta es la transcripción de una reunión (cada línea lleva [minuto] y quién habla).
+        Escribe en español, en Markdown, con estas secciones exactas:
+        ## Resumen
+        (3-6 frases)
+        ## Decisiones
+        (lista; "Ninguna" si no hay)
+        ## Tareas
+        (lista "- [ ] Responsable: tarea (fecha si la hay)")
+        ## Temas abiertos
+        (lista)
+        Usa solo lo que se dice en la transcripción.
+
+        TRANSCRIPCIÓN:
+        {transcripcion}
+
+  - guardar_nota:
+      carpeta: reuniones
+      titulo: "Reunión {fecha} {hora}"
+      contenido: |
+        # Reunión {fecha} {hora}
+
+        Archivo: {archivo} · Duración: {duracion} · Personas detectadas: {personas}
+
+        {resumen}
+
+        ## Transcripción
+
+        {transcripcion}
+
+  - recordar:
+      titulo: "Reunión {fecha} {hora}"
+      contenido: "{nota}"
+      de_noche: true        # construir el grafo es lento: se hace a la hora nocturna
+
+  - avisar:
+      mensaje: "Reunión del {fecha} lista. {resumen_corto}"

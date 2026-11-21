@@ -1,0 +1,32 @@
+nombre: Foto o captura
+descripcion: Lee una foto (pizarra, documento, ticket) o una captura de pantalla con el modelo de visión y la guarda como nota buscable.
+cuando:
+  extensiones: [.jpg, .jpeg, .png, .webp]
+prioridad: 10
+
+pasos:
+  - describir_imagen:
+      guardar_como: descripcion
+      max_tokens: 700
+      prompt: |
+        Describe esta imagen en español para mi archivo personal.
+        Si tiene texto (pizarra, documento, ticket, pantalla), transcríbelo entero y ordenado.
+        Después añade una línea "Qué es:" con una frase.
+
+  - guardar_nota:
+      carpeta: imagenes
+      titulo: "Imagen {fecha} {hora}"
+      contenido: |
+        # Imagen {fecha} {hora}
+
+        Archivo: {archivo}
+
+        {descripcion}
+
+  - recordar:
+      titulo: "Imagen {fecha} {hora}"
+      contenido: "{nota}"
+      de_noche: true
+
+  - avisar:
+      mensaje: "Imagen leída y guardada: {archivo}"

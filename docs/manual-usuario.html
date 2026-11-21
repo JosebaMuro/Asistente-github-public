@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Cerebro local · Manual de usuario</title>
+<link rel="stylesheet" href="manual.css">
+</head>
+<body>
+
+<section class="portada">
+  <div class="marca">Cerebro local · versión 1.0</div>
+  <h1>Manual de usuario</h1>
+  <p>Tu asistente personal que vive en tu PC: escucha tus reuniones, lee tus fotos y notas, aprende de todo ello y te responde. Nada sale de tu casa.</p>
+  <div class="meta">Windows · Linux (incluida la sesión live de Ubuntu 24.04) · Android</div>
+</section>
+
+<section class="indice">
+  <h2>Contenido</h2>
+  <ol>
+    <li><a href="#que-es">Qué es Cerebro</a></li>
+    <li><a href="#necesitas">Lo que necesitas</a></li>
+    <li><a href="#windows">Instalar en Windows</a></li>
+    <li><a href="#live">Probar en Ubuntu 24.04 live (AppImage)</a></li>
+    <li><a href="#movil">Instalar la app del móvil</a></li>
+    <li><a href="#pantalla">La pantalla y el avatar</a></li>
+    <li><a href="#capturar">Capturar: reuniones, notas de voz, fotos y textos</a></li>
+    <li><a href="#preguntar">Preguntar a tu memoria</a></li>
+    <li><a href="#recetas">Recetas: tus flujos de trabajo</a></li>
+    <li><a href="#memoria">Cómo aprende y dónde están tus datos</a></li>
+    <li><a href="#tui">La interfaz de terminal (TUI)</a></li>
+    <li><a href="#problemas">Problemas frecuentes</a></li>
+  </ol>
+</section>
+
+<h2 id="que-es">1. Qué es Cerebro</h2>
+<p>Cerebro reparte el trabajo entre dos aparatos:</p>
+<ul>
+  <li><b>El PC es el cerebro.</b> Ejecuta los modelos de inteligencia artificial en tu tarjeta gráfica, guarda la memoria y hace el trabajo pesado: transcribir, resumir, describir imágenes y construir el grafo de conocimiento.</li>
+  <li><b>El móvil es tu kit de captura.</b> Grabas una reunión, dictas una nota, haces una foto a una pizarra o compartes un enlace. Todo va a la <b>bandeja</b> del PC, y allí una <b>receta</b> decide qué hacer con ello.</li>
+</ul>
+<p>Lo que aprende se guarda en <b>Cognee</b>, una memoria en forma de grafo: personas, proyectos, decisiones, fechas y cómo se relacionan. Ese grafo es el <b>avatar</b> que flota en el centro de la pantalla. Crece con cada cosa que aprende, se ilumina cuando piensa y te muestra de dónde saca cada respuesta.</p>
+<div class="caja">Todo funciona sin internet una vez descargados los modelos. Ni tus audios ni tus notas salen de tu red.</div>
+
+<h2 id="necesitas">2. Lo que necesitas</h2>
+<table>
+  <tr><th>Pieza</th><th>Mínimo</th><th>Tu equipo</th></tr>
+  <tr><td>Tarjeta gráfica</td><td>NVIDIA con 6 GB (o cualquier GPU con Vulkan; o solo CPU, más lento)</td><td>RTX 4050 6 GB ✓</td></tr>
+  <tr><td>Memoria RAM</td><td>12 GB (16 GB va más holgado)</td><td>~12 GB ✓</td></tr>
+  <tr><td>Disco</td><td>20 GB libres (programa ~3 GB + modelos ~10 GB + tus datos)</td><td></td></tr>
+  <tr><td>Sistema</td><td>Windows 10/11 de 64 bits, o Linux x86-64 (Ubuntu 24.04 probado en live)</td><td></td></tr>
+  <tr><td>Driver NVIDIA</td><td>576 o superior (CUDA 12.9)</td><td>Actualízalo desde la app de NVIDIA</td></tr>
+  <tr><td>Móvil</td><td>Android 8 o superior, en la misma Wi-Fi que el PC (o con Tailscale)</td><td>Android ✓</td></tr>
+</table>
+
+<h2 id="windows">3. Instalar en Windows</h2>
+<p>La versión de Windows es <b>portable</b>: no se instala, es una carpeta que lleva dentro todo lo necesario (Python, el motor llama.cpp con CUDA y las librerías).</p>
+<ol class="pasos">
+  <li>Descomprime <code>Cerebro-windows-x64.zip</code> en una carpeta con espacio, por ejemplo <code>D:\Cerebro</code>.</li>
+  <li>Abre <code>Cerebro.bat</code> con doble clic. Se abre una ventana negra (el servidor) y, a los pocos segundos, el navegador en <code>http://localhost:8765</code>.</li>
+  <li>La primera vez descarga los modelos (unos 10 GB). Verás una barra de progreso sobre el avatar. Puedes ir usando la interfaz mientras tanto.</li>
+  <li>Si Windows pregunta por el cortafuegos, permite el acceso en <b>redes privadas</b> para que el móvil pueda conectarse.</li>
+</ol>
+<h3>Que arranque solo al encender el PC</h3>
+<p>Haz clic derecho en <code>instalar-servicio.bat</code> y elige <b>Ejecutar como administrador</b>. Desde ese momento Cerebro se pone en marcha al encender el ordenador, <b>aunque nadie inicie sesión</b> en Windows: la GPU funciona igual sin escritorio. El script también abre el puerto 8765 en el cortafuegos (solo redes privadas) y te muestra la dirección IP que tienes que escribir en el móvil.</p>
+<p>Para quitarlo: <code>desinstalar-servicio.bat</code>, también como administrador. Tus datos no se tocan.</p>
+
+<h2 id="live">4. Probar en Ubuntu 24.04 live (AppImage)</h2>
+<p>Puedes probar Cerebro arrancando el portátil desde un USB con Ubuntu 24.04, sin tocar Windows. El AppImage es un único archivo que lleva dentro Python, llama.cpp con CUDA 12.9 (y Vulkan y CPU como respaldo), todas las librerías y el <b>driver NVIDIA 580</b> listo para instalarse en la sesión live sin conexión.</p>
+<div class="caja aviso"><b>Importante:</b> en una sesión live todo lo que se escribe en el sistema se pierde al apagar. Por eso Cerebro guarda sus datos en una carpeta <code>cerebro-datos</code> <b>junto al AppImage</b>. Pon el AppImage en un USB o partición con espacio (mínimo 16 GB libres) y tus datos y modelos sobrevivirán.</div>
+<h3>Preparar el USB (una vez, con internet)</h3>
+<ol class="pasos">
+  <li>Graba Ubuntu 24.04.4 o posterior en un USB y arranca el portátil desde él (en el Victus, <kbd>F9</kbd> al encender abre el menú de arranque). Elige <b>Probar Ubuntu</b>.</li>
+  <li>Copia <code>Cerebro-x86_64.AppImage</code> a un segundo USB o a una partición de datos y dale permiso de ejecución: clic derecho → Propiedades → Ejecutable, o en una terminal <code>chmod +x Cerebro-x86_64.AppImage</code>.</li>
+  <li>Con internet, ejecuta <code>./Cerebro-x86_64.AppImage preparar-usb</code>. Descarga los modelos (unos 10 GB) y el driver NVIDIA exacto para el kernel de tu live y lo deja todo en <code>cerebro-datos</code>.</li>
+</ol>
+<h3>Usarlo sin conexión</h3>
+<ol class="pasos">
+  <li>Activa la gráfica NVIDIA: <code>./Cerebro-x86_64.AppImage activar-nvidia</code> (te pedirá la contraseña de sudo; en la live está vacía, pulsa <kbd>Intro</kbd>). Al terminar verás el nombre de tu RTX 4050 y la versión del driver.</li>
+  <li>Arranca Cerebro: <code>./Cerebro-x86_64.AppImage</code>. Abre <code>http://localhost:8765</code> en Firefox.</li>
+  <li>Para la terminal: en otra ventana, <code>./Cerebro-x86_64.AppImage tui</code>.</li>
+</ol>
+<p>Si ya hay modelos en <code>cerebro-datos/modelos</code>, Cerebro entra solo en <b>modo autónomo</b> y no intenta conectarse a internet.</p>
+<h3>Si activar-nvidia no puede</h3>
+<table>
+  <tr><th>Mensaje</th><th>Qué hacer</th></tr>
+  <tr><td>«No tengo el driver para el kernel…»</td><td>Tu live usa un kernel distinto de los incluidos (6.17.0-14 y 7.0.0-14). Con internet ejecuta <code>preparar-usb</code> una vez: descargará el driver para ese kernel.</td></tr>
+  <tr><td>«nouveau está en uso»</td><td>Reinicia la live. En el menú de arranque pulsa <kbd>e</kbd>, añade <code>modprobe.blacklist=nouveau nouveau.modeset=0</code> al final de la línea que empieza por <code>linux</code> y arranca con <kbd>F10</kbd>.</td></tr>
+  <tr><td>«No se pudo cargar el módulo»</td><td>Los módulos van firmados por Canonical y suelen cargar con Secure Boot. Si no, desactiva Secure Boot en la BIOS para la prueba.</td></tr>
+</table>
+<p>Si no activas la NVIDIA, Cerebro funciona igual con Vulkan o con la CPU, solo que más despacio.</p>
+
+<h2 id="movil">5. Instalar la app del móvil</h2>
+<ol class="pasos">
+  <li>Pasa <code>Cerebro.apk</code> al móvil y ábrelo. Android pedirá permiso para instalar apps de origen desconocido: concédelo solo para esta instalación.</li>
+  <li>Al abrir la app, escribe la dirección de tu PC, por ejemplo <code>http://192.168.1.40:8765</code>. La ves al ejecutar <code>instalar-servicio.bat</code>, o en Windows con <code>ipconfig</code> (línea «IPv4»).</li>
+  <li>Acepta los permisos de <b>micrófono</b> y <b>notificaciones</b>. La notificación es lo que permite seguir grabando con la pantalla apagada.</li>
+</ol>
+<p>Puedes cambiar la dirección en cualquier momento con el botón <b>Servidor</b> de la barra superior. Si estás fuera de casa, instala <b>Tailscale</b> en el PC y en el móvil y usa la dirección de Tailscale del PC.</p>
+<div class="caja">Sin la app también puedes usar el navegador del móvil, pero los navegadores solo dejan grabar con el micrófono en páginas <code>https</code>. En ese caso los botones de grabar abren la grabadora del sistema. La app no tiene esa limitación.</div>
+
+<h2 id="pantalla">6. La pantalla y el avatar</h2>
+<figure><img src="img/escritorio.png" alt="Pantalla principal en el PC"><figcaption>En el PC: a la izquierda, capturar y la bandeja; en el centro, el avatar y la conversación; a la derecha, el detalle, las recetas y las notas.</figcaption></figure>
+<div class="dos">
+  <figure><img src="img/movil.png" alt="Pantalla en el móvil"><figcaption>En el móvil la misma interfaz se apila en una columna.</figcaption></figure>
+  <div>
+    <h3>El avatar</h3>
+    <p>Cada punto es algo que Cerebro sabe: una persona, un tema, una tarea, una decisión, una fecha, una organización o una fuente (la grabación o nota de donde salió). La leyenda de arriba muestra los colores y cuántos hay de cada tipo.</p>
+    <ul>
+      <li><b>Arrastra</b> para girarlo y <b>pellizca</b> o usa la rueda para acercarte.</li>
+      <li><b>Toca un punto</b> para ver en «Detalle» qué sabe de eso y con qué está conectado.</li>
+      <li>Cuando respondes, se <b>iluminan</b> los puntos que ha usado.</li>
+    </ul>
+    <h3>Estados</h3>
+    <p>Abajo del avatar ves si está <b>en reposo</b>, <b>escuchando</b> (grabando), <b>pensando</b>, <b>hablando</b> o <b>aprendiendo</b>. Todas las pantallas conectadas ven lo mismo a la vez.</p>
+  </div>
+</div>
+
+<h2 id="capturar">7. Capturar</h2>
+<table>
+  <tr><th>Botón</th><th>Qué hace</th><th>Receta por defecto</th></tr>
+  <tr><td><b>Grabar reunión</b></td><td>Graba hasta que pulses <b>Parar y enviar</b>. Sigue grabando aunque apagues la pantalla.</td><td>Reunión: transcribe separando quién habla, resume, saca decisiones y tareas, guarda la nota y la aprende esa noche.</td></tr>
+  <tr><td><b>Nota de voz</b></td><td>Pulsa para empezar y otra vez para terminar.</td><td>Nota de voz: transcribe, ordena la idea y la aprende al momento.</td></tr>
+  <tr><td><b>Subir archivos</b></td><td>Audios, fotos, capturas de pantalla, archivos .txt o .md.</td><td>Según el tipo: reunión para audio, foto para imágenes, texto para documentos.</td></tr>
+  <tr><td><b>Pegar texto</b></td><td>Un enlace, un correo o una idea.</td><td>Texto: lo resume y lo aprende.</td></tr>
+</table>
+<p><b>Compartir desde otras apps:</b> en el móvil, en cualquier app (galería, WhatsApp, navegador, correo) pulsa <b>Compartir → Cerebro</b>. Los archivos van directos a la bandeja y los textos aparecen en el cuadro de pegar.</p>
+<p>Si el PC no está disponible cuando terminas una grabación, la app la guarda y la vuelve a enviar sola la próxima vez que la abras.</p>
+<h3>La bandeja</h3>
+<p>Cada captura aparece en la bandeja con su estado: <b>En cola</b>, <b>Procesando</b> (con el paso por el que va), <b>Hecho</b>, <b>Memoria esta noche</b> o <b>Error</b> (con un botón para reintentar). Cuando termina, <b>Ver nota</b> abre el resultado. También puedes dejar archivos directamente en la carpeta <code>datos/bandeja</code> del PC: Cerebro los recoge solo.</p>
+
+<h2 id="preguntar">8. Preguntar a tu memoria</h2>
+<p>Escribe en el cuadro de abajo o pulsa 🎙 para preguntar por voz (pulsa una vez para hablar y otra para enviar). Ejemplos:</p>
+<ul>
+  <li>«¿Qué tareas me quedaron de la reunión con Iker?»</li>
+  <li>«¿Qué decidimos sobre el presupuesto del primer trimestre?»</li>
+  <li>«¿Qué ponía en la pizarra de la foto del martes?»</li>
+</ul>
+<p>Cerebro busca primero en el grafo de Cognee y, si hace falta, en tus notas. Debajo de cada respuesta indica las <b>fuentes</b>. Marca <b>Hablar respuestas</b> arriba a la derecha para que te las lea en voz alta.</p>
+
+<h2 id="recetas">9. Recetas: tus flujos de trabajo</h2>
+<p>Una receta es una lista de pasos que se ejecuta con cada captura. Se editan en la pestaña <b>Recetas</b> (o en la TUI, guardando con Ctrl+S) y se guardan como archivos <code>.yaml</code> en la carpeta <code>recetas</code>. Ejemplo: una receta <code>clase</code> (archivo <code>recetas/clase.yaml</code>) que transcribe una clase y saca un esquema. Se usa con los audios que dejes en <code>datos/bandeja/clase/</code>.</p>
+<pre><code>nombre: Clase
+descripcion: Transcribe una clase y saca un esquema para estudiar.
+cuando:
+  extensiones: []        # no se elige por tipo: solo por su carpeta de la bandeja
+pasos:
+  - transcribir:
+      separar_voces: false
+  - preguntar_llm:
+      perfil: texto
+      trocear: 2500
+      guardar_como: esquema
+      prompt: |
+        Haz un esquema de estudio en Markdown de esta clase:
+        {transcripcion}
+  - guardar_nota:
+      carpeta: clases
+      titulo: "Clase {fecha}"
+      contenido: "{esquema}"
+  - recordar:
+      contenido: "{nota}"
+      de_noche: true</code></pre>
+<h3>Pasos disponibles</h3>
+<table>
+  <tr><th>Paso</th><th>Para qué</th><th>Opciones</th></tr>
+  <tr><td><code>transcribir</code></td><td>Voz a texto con marcas de minuto y quién habla</td><td><code>separar_voces</code></td></tr>
+  <tr><td><code>preguntar_llm</code></td><td>Pedir algo al modelo</td><td><code>perfil</code> (texto, rapido, vision), <code>prompt</code>, <code>guardar_como</code>, <code>trocear</code>, <code>max_tokens</code></td></tr>
+  <tr><td><code>describir_imagen</code></td><td>Leer una foto o captura</td><td><code>prompt</code>, <code>guardar_como</code></td></tr>
+  <tr><td><code>guardar_nota</code></td><td>Crear una nota Markdown</td><td><code>titulo</code>, <code>contenido</code>, <code>carpeta</code></td></tr>
+  <tr><td><code>recordar</code></td><td>Añadir a la memoria</td><td><code>contenido</code>, <code>de_noche: true</code> para dejarlo a la hora nocturna</td></tr>
+  <tr><td><code>avisar</code></td><td>Mostrar un aviso en todas las pantallas</td><td><code>mensaje</code></td></tr>
+</table>
+<p><b>Variables</b> que puedes usar entre llaves: <code>{archivo}</code>, <code>{nombre}</code>, <code>{fecha}</code>, <code>{hora}</code>, <code>{transcripcion}</code>, <code>{duracion}</code>, <code>{personas}</code>, <code>{contenido}</code>, <code>{nota}</code> y cualquier nombre que hayas puesto en <code>guardar_como</code>.</p>
+<p><b>Qué receta se usa:</b> la que elijas al subir; si no, la de la subcarpeta de la bandeja donde cae el archivo; si no, la que corresponde a su extensión con menor <code>prioridad</code>.</p>
+
+<h2 id="memoria">10. Cómo aprende y dónde están tus datos</h2>
+<p>Construir el grafo es lo más costoso, así que las reuniones largas se aprenden <b>de noche</b> (a las 3:00 por defecto; se cambia en <code>config.yaml</code>, <code>hora_nocturna</code>). Las notas de voz y los textos se aprenden al momento. Con <b>Aprender ahora</b>, en la bandeja, procesas la cola sin esperar.</p>
+<table>
+  <tr><th>Carpeta</th><th>Contenido</th></tr>
+  <tr><td><code>datos/notas</code></td><td>Tus notas en Markdown. <b>Son la fuente de verdad</b>: se pueden leer con cualquier editor y sirven para reconstruir la memoria.</td></tr>
+  <tr><td><code>datos/archivo</code></td><td>Los originales (audios, fotos) ya procesados, por meses.</td></tr>
+  <tr><td><code>datos/memoria</code></td><td>Las bases de datos de Cognee (grafo y vectores).</td></tr>
+  <tr><td><code>datos/bandeja</code></td><td>Lo que está por procesar.</td></tr>
+  <tr><td><code>modelos</code></td><td>Modelos de lenguaje, voz y embeddings.</td></tr>
+</table>
+<p>Para hacer una copia de seguridad basta con copiar la carpeta <code>datos</code>.</p>
+
+<h2 id="tui">11. La interfaz de terminal (TUI)</h2>
+<figure><img src="img/tui.png" alt="Interfaz de terminal"><figcaption>La TUI: avatar en ASCII que gira, estado, bandeja, conversación y editor de recetas.</figcaption></figure>
+<p>Arráncala con <code>Cerebro-TUI.bat</code> en Windows o <code>./Cerebro-x86_64.AppImage tui</code> en Linux. Se conecta al servidor que ya está en marcha; para usarla desde otro equipo: <code>tui --url http://IP:8765</code>.</p>
+<table>
+  <tr><th>Tecla</th><th>Acción</th></tr>
+  <tr><td><kbd>Intro</kbd></td><td>Enviar la pregunta</td></tr>
+  <tr><td><kbd>a</kbd></td><td>Aprender ahora</td></tr>
+  <tr><td><kbd>r</kbd></td><td>Recargar bandeja y recetas</td></tr>
+  <tr><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>Guardar la receta que estás editando</td></tr>
+  <tr><td><kbd>q</kbd></td><td>Salir</td></tr>
+</table>
+
+<h2 id="problemas">12. Problemas frecuentes</h2>
+<table>
+  <tr><th>Qué pasa</th><th>Solución</th></tr>
+  <tr><td>El móvil dice «No encuentro tu PC»</td><td>Comprueba que Cerebro está en marcha en el PC, que ambos están en la misma Wi-Fi y que el cortafuegos permite el puerto 8765 en redes privadas (<code>instalar-servicio.bat</code> lo configura).</td></tr>
+  <tr><td>La primera respuesta tarda mucho</td><td>Es la carga del modelo en la GPU (unos segundos) o la descarga inicial. Después va rápido. Si no lo usas en 10 minutos, libera la memoria de la GPU.</td></tr>
+  <tr><td>Error de memoria de la GPU</td><td>Cierra juegos u otras apps que usen la GPU, o baja <code>capas_gpu</code> en <code>config.yaml</code> (por ejemplo a 28).</td></tr>
+  <tr><td>Detecta demasiadas o muy pocas personas</td><td>Sube o baja <code>umbral_voces</code> en <code>config.yaml</code>, o fija <code>num_personas</code>.</td></tr>
+  <tr><td>Quiero probar sin modelos</td><td>Arranca en modo simulado: <code>Cerebro.bat simulado</code> o <code>./Cerebro-x86_64.AppImage simulado</code>.</td></tr>
+  <tr><td>Dónde ver qué ha pasado</td><td>Registros en <code>datos/estado/cerebro.log</code> y <code>datos/estado/llama-server.log</code>.</td></tr>
+</table>
+<div class="caja"><b>Privacidad:</b> Cerebro no tiene contraseña. Está pensado para tu red de casa o para Tailscale. No abras el puerto 8765 a internet en el router.</div>
+
+</body>
+</html>

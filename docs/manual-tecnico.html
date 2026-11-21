@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Cerebro local · Manual técnico</title>
+<link rel="stylesheet" href="manual.css">
+</head>
+<body>
+
+<section class="portada">
+  <div class="marca">Cerebro local · versión 1.0</div>
+  <h1>Manual técnico</h1>
+  <p>Arquitectura, decisiones de diseño, configuración, API, recetas, memoria, empaquetado y despliegue en una sesión live de Ubuntu 24.04 con CUDA.</p>
+  <div class="meta">Para quien quiera entender, modificar o recompilar Cerebro.</div>
+</section>
+
+<section class="indice">
+  <h2>Contenido</h2>
+  <ol>
+    <li><a href="#arquitectura">Arquitectura</a></li>
+    <li><a href="#decisiones">Decisiones: qué se usa y qué se ha quitado</a></li>
+    <li><a href="#vram">Presupuesto de memoria (6 GB de VRAM, 12 GB de RAM)</a></li>
+    <li><a href="#codigo">Estructura del código</a></li>
+    <li><a href="#config">Configuración (config.yaml y variables de entorno)</a></li>
+    <li><a href="#motor">Motor de lenguaje: llama-server</a></li>
+    <li><a href="#voz">Voz: sherpa-onnx</a></li>
+    <li><a href="#memoria">Memoria: Cognee y el avatar</a></li>
+    <li><a href="#recetas">Recetas y trabajos</a></li>
+    <li><a href="#api">API HTTP y WebSocket</a></li>
+    <li><a href="#android">App Android</a></li>
+    <li><a href="#paquetes">Empaquetado y compilación</a></li>
+    <li><a href="#live">Live de Ubuntu 24.04 con NVIDIA sin conexión</a></li>
+    <li><a href="#seguridad">Seguridad y límites conocidos</a></li>
+  </ol>
+</section>
+
+<h2 id="arquitectura">1. Arquitectura</h2>
+<p>Un único proceso Python (FastAPI + uvicorn) coordina todo. Lanza <code>llama-server</code> como proceso hijo cuando hace falta y lo detiene cuando no. La voz y los embeddings van en la CPU dentro del mismo proceso; la GPU queda entera para el modelo de lenguaje.</p>
+<figure>
+<svg viewBox="0 0 720 360" width="100%" xmlns="http://www.w3.org/2000/svg" font-size="12">
+  <defs><marker id="f" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#5b6178"/></marker></defs>
+  <g fill="#f4f6fb" stroke="#c8ccda">
+    <rect x="10" y="20" width="160" height="70" rx="8"/>
+    <rect x="10" y="110" width="160" height="70" rx="8"/>
+    <rect x="10" y="200" width="160" height="70" rx="8"/>
+  </g>
+  <text x="90" y="48" text-anchor="middle" font-weight="600">Navegador (PC)</text><text x="90" y="66" text-anchor="middle" fill="#5b6178">web/ · avatar canvas</text>
+  <text x="90" y="138" text-anchor="middle" font-weight="600">App Android</text><text x="90" y="156" text-anchor="middle" fill="#5b6178">WebView + grabación nativa</text>
+  <text x="90" y="228" text-anchor="middle" font-weight="600">TUI (Textual)</text><text x="90" y="246" text-anchor="middle" fill="#5b6178">cerebro tui</text>
+  <rect x="230" y="20" width="270" height="320" rx="10" fill="#eef2ff" stroke="#4a6cf7"/>
+  <text x="365" y="44" text-anchor="middle" font-weight="700">cerebro (FastAPI, puerto 8765)</text>
+  <g fill="#fff" stroke="#c8ccda">
+    <rect x="250" y="60" width="230" height="36" rx="6"/><rect x="250" y="104" width="230" height="36" rx="6"/>
+    <rect x="250" y="148" width="110" height="36" rx="6"/><rect x="370" y="148" width="110" height="36" rx="6"/>
+    <rect x="250" y="192" width="230" height="36" rx="6"/><rect x="250" y="236" width="230" height="36" rx="6"/>
+    <rect x="250" y="280" width="230" height="44" rx="6"/>
+  </g>
+  <text x="365" y="83" text-anchor="middle">API REST + WebSocket (eventos.hub)</text>
+  <text x="365" y="127" text-anchor="middle">trabajos: bandeja → receta → pasos</text>
+  <text x="305" y="171" text-anchor="middle">voz (CPU)</text><text x="425" y="171" text-anchor="middle">notas .md</text>
+  <text x="365" y="215" text-anchor="middle">memoria: Cognee + fastembed (CPU)</text>
+  <text x="365" y="259" text-anchor="middle">motor: gestor de llama-server</text>
+  <text x="365" y="300" text-anchor="middle">datos/ (bandeja, archivo, notas,</text><text x="365" y="315" text-anchor="middle">memoria, estado)</text>
+  <rect x="560" y="200" width="150" height="80" rx="8" fill="#fff6e5" stroke="#f0b44c"/>
+  <text x="635" y="228" text-anchor="middle" font-weight="600">llama-server</text><text x="635" y="246" text-anchor="middle" fill="#5b6178">127.0.0.1:8766</text><text x="635" y="264" text-anchor="middle" fill="#5b6178">GPU (CUDA/Vulkan)</text>
+  <rect x="560" y="60" width="150" height="70" rx="8" fill="#f4f6fb" stroke="#c8ccda"/>
+  <text x="635" y="88" text-anchor="middle" font-weight="600">modelos/</text><text x="635" y="106" text-anchor="middle" fill="#5b6178">GGUF · ONNX · fastembed</text>
+  <g stroke="#5b6178" fill="none" marker-end="url(#f)">
+    <path d="M170,55 L248,78"/><path d="M170,145 L248,82"/><path d="M170,235 L248,86"/>
+    <path d="M480,254 L558,240"/><path d="M480,215 L558,232"/>
+    <path d="M635,200 L635,132"/>
+  </g>
+  <text x="520" y="232" fill="#5b6178" font-size="10">OpenAI /v1</text>
+</svg>
+<figcaption>Clientes, servidor y motor. Las capturas del móvil entran por <code>/api/subir</code>; los cambios se difunden por WebSocket a todas las pantallas.</figcaption>
+</figure>
+<p><b>Flujo de una reunión:</b> el móvil sube el audio, que cae en <code>datos/bandeja</code>. El gestor de trabajos elige la receta <code>reunion</code> y ejecuta sus pasos: <code>transcribir</code> (sherpa-onnx, CPU), <code>preguntar_llm</code> (llama-server con el perfil <code>texto</code>), <code>guardar_nota</code> (Markdown) y <code>recordar</code> (a la cola nocturna). A las 3:00, Cognee extrae entidades y relaciones con el mismo llama-server y el avatar recibe <code>grafo_actualizado</code>.</p>
+
+<h2 id="decisiones">2. Decisiones: qué se usa y qué se ha quitado</h2>
+<table>
+  <tr><th>Capa</th><th>Elegido</th><th>Descartado y por qué</th></tr>
+  <tr><td>LLM</td><td><b>llama-server</b> (llama.cpp) lanzado directamente como subproceso</td><td>Ollama: es otra capa (servicio, API propia, copia de modelos) sobre el mismo llama.cpp. Lanzar llama-server ahorra RAM y un proceso residente, y deja controlar contexto, capas en GPU y descarga de VRAM.</td></tr>
+  <tr><td>Transcripción</td><td>sherpa-onnx + Parakeet TDT 0.6B v3 int8 en CPU</td><td>Whisper en GPU: competiría por los 6 GB con el LLM. PyTorch: más de 2 GB de dependencias.</td></tr>
+  <tr><td>Quién habla</td><td>sherpa-onnx: pyannote segmentation 3.0 + 3D-Speaker ERes2Net</td><td>pyannote.audio: necesita PyTorch y token de Hugging Face.</td></tr>
+  <tr><td>Silencios</td><td>Silero VAD (ONNX)</td><td>—</td></tr>
+  <tr><td>Audio</td><td>PyAV (FFmpeg como librería)</td><td>ffmpeg como ejecutable aparte.</td></tr>
+  <tr><td>Memoria</td><td>Cognee 1.6 con almacenes embebidos (SQLite, LanceDB, grafo en archivo)</td><td>Neo4j, Postgres o Qdrant como servicios: más procesos para un único usuario.</td></tr>
+  <tr><td>Embeddings</td><td>fastembed, paraphrase-multilingual-MiniLM-L12-v2 (384 dims, CPU, ONNX)</td><td>Embeddings servidos por llama-server: obligaría a tener dos modelos en VRAM.</td></tr>
+  <tr><td>Voz de salida</td><td>TTS del sistema (speechSynthesis o TextToSpeech de Android)</td><td>Piper u otros TTS locales: más peso sin aportar a la prueba.</td></tr>
+  <tr><td>Interfaz</td><td>HTML + JS sin frameworks; grafo 3D propio en canvas 2D</td><td>React y three.js: build, peso y dependencias.</td></tr>
+  <tr><td>Android</td><td>Java + WebView, solo SDK de Android</td><td>Flutter o React Native: duplicar la interfaz. AndroidX: no hace falta.</td></tr>
+</table>
+
+<h2 id="vram">3. Presupuesto de memoria</h2>
+<p>Solo hay <b>un</b> modelo de lenguaje cargado a la vez. El gestor (<code>motor.py</code>) cambia de perfil bajo demanda y descarga el modelo tras 10 minutos sin uso.</p>
+<table>
+  <tr><th>Perfil</th><th>Modelo</th><th>Contexto</th><th>VRAM aprox.</th><th>Uso</th></tr>
+  <tr><td><code>texto</code></td><td>Qwen3-8B Q4_K_M</td><td>8192</td><td>~5,0 GB pesos + ~1,1 GB KV cache</td><td>Resúmenes, chat, extracción de Cognee</td></tr>
+  <tr><td><code>rapido</code></td><td>Qwen3-4B Q4_K_M</td><td>4096</td><td>~2,5 GB + 0,6 GB</td><td>Notas de voz</td></tr>
+  <tr><td><code>vision</code></td><td>Qwen2.5-VL-3B Q4_K_M + mmproj</td><td>4096</td><td>~3,2 GB</td><td>Fotos y capturas</td></tr>
+</table>
+<p>Si con <code>texto</code> y 8K de contexto no cabe todo en la RTX 4050, llama.cpp lo avisa en <code>llama-server.log</code>. Basta con bajar <code>capas_gpu</code> (las capas restantes van a la CPU) o el contexto. En RAM: Python + Cognee + modelos de voz ocupan unos 2,5 GB; transcribir una hora de audio, unos 1,5 GB más. El modelo de voz se libera al terminar cada transcripción (<code>voz.liberar()</code>).</p>
+
+<h2 id="codigo">4. Estructura del código</h2>
+<pre><code>cerebro/
+  __main__.py   órdenes: servidor (defecto) · simulado · tui · preparar [--modelos] · ayuda
+  config.py     carga config.yaml, resuelve rutas, VERSION, variables de entorno
+  app.py        FastAPI: API REST, WebSocket /ws, estáticos de web/, ciclo de vida
+  eventos.py    hub de WebSocket (emitir, emitir_desde_hilo, estado del avatar)
+  motor.py      gestor de llama-server: perfiles, arranque, /health, chat, inactividad
+  descargas.py  binario de llama.cpp, modelos de voz, prefetch de modelos (sin conexión)
+  voz.py        decodificar (PyAV) · VAD · reconocimiento · separación de voces
+  memoria.py    Cognee: entorno, recordar, preguntar, grafo → formato del avatar
+  notas.py      notas Markdown: guardar, buscar, listar
+  recetas.py    validar, cargar, elegir y rellenar plantillas de recetas YAML
+  trabajos.py   cola persistente, vigilante de bandeja, pasos, cola nocturna
+  simulado.py   grafo y respuestas de ejemplo para el modo simulado
+  tui.py        interfaz Textual (avatar ASCII, bandeja, chat, editor de recetas)
+web/            index.html · estilo.css · avatar.js · app.js · manifest (PWA)
+recetas/        reunion.yaml · nota_voz.yaml · foto.yaml · texto.yaml
+android/        proyecto Gradle (Java): Principal, Puente, Grabacion, Envio
+empaquetar/     construir-linux.sh · construir-windows.sh · conda_paquetes.py
+                linux/AppRun · nvidia/ (activar-nvidia.sh, preparar-usb.sh, nvidia_debs.py)
+                windows/*.bat · requisitos-*.txt
+.github/workflows/compilar.yml</code></pre>
+
+<h2 id="config">5. Configuración</h2>
+<p><code>config.yaml</code> está junto al programa (o en <code>cerebro-datos</code> en el AppImage). Las rutas relativas se resuelven desde esa carpeta.</p>
+<table>
+  <tr><th>Clave</th><th>Defecto</th><th>Efecto</th></tr>
+  <tr><td><code>modo</code></td><td><code>real</code></td><td><code>simulado</code> usa datos de ejemplo sin modelos.</td></tr>
+  <tr><td><code>servidor.host / puerto</code></td><td><code>0.0.0.0 / 8765</code></td><td>Usa <code>127.0.0.1</code> para que solo se acceda desde el PC.</td></tr>
+  <tr><td><code>rutas.*</code></td><td><code>./datos/...</code></td><td>bandeja, archivo, notas, estado, memoria, modelos, motor, recetas.</td></tr>
+  <tr><td><code>llama.binario</code></td><td>vacío</td><td>Ruta a un llama-server propio. Vacío: se busca en <code>motor/</code> o se descarga.</td></tr>
+  <tr><td><code>llama.variante</code></td><td><code>auto</code></td><td><code>cuda | vulkan | cpu</code> para la descarga automática.</td></tr>
+  <tr><td><code>llama.capas_gpu</code></td><td><code>99</code></td><td>Valor de <code>-ngl</code>. Bájalo si falta VRAM.</td></tr>
+  <tr><td><code>llama.descargar_tras_minutos</code></td><td><code>10</code></td><td>Libera la VRAM tras ese tiempo sin uso.</td></tr>
+  <tr><td><code>llama.perfiles.&lt;n&gt;</code></td><td>texto, rapido, vision</td><td><code>hf: repo:quant</code> o <code>modelo:</code> (+ <code>mmproj:</code>) con archivo local; <code>contexto</code>; <code>extra:</code> lista de argumentos.</td></tr>
+  <tr><td><code>voz.hilos</code></td><td><code>4</code></td><td>Hilos de CPU para ONNX.</td></tr>
+  <tr><td><code>voz.separar_voces / umbral_voces / num_personas</code></td><td><code>true / 0.5 / -1</code></td><td>Separación de voces. -1 detecta el número de personas automáticamente.</td></tr>
+  <tr><td><code>memoria.dataset</code></td><td><code>cerebro</code></td><td>Dataset de Cognee.</td></tr>
+  <tr><td><code>memoria.hora_nocturna</code></td><td><code>3</code></td><td>Hora de proceso de la cola de memoria.</td></tr>
+  <tr><td><code>memoria.max_nodos_avatar</code></td><td><code>350</code></td><td>Límite de nodos enviados al avatar (los más conectados).</td></tr>
+</table>
+<h3>Variables de entorno</h3>
+<table>
+  <tr><th>Variable</th><th>Uso</th></tr>
+  <tr><td><code>CEREBRO_RAIZ</code></td><td>Carpeta de datos y configuración (la usa el AppImage).</td></tr>
+  <tr><td><code>CEREBRO_CONFIG</code></td><td>Ruta a otro config.yaml.</td></tr>
+  <tr><td><code>CEREBRO_MODO</code></td><td><code>real</code> o <code>simulado</code>.</td></tr>
+  <tr><td><code>CEREBRO_LLAMA</code></td><td>Ruta del llama-server incluido en el paquete.</td></tr>
+  <tr><td><code>CEREBRO_OFFLINE=1</code></td><td>Añade <code>--offline</code> a llama-server y <code>HF_HUB_OFFLINE=1</code>: solo caché local.</td></tr>
+  <tr><td><code>CEREBRO_DATOS</code></td><td>(AppImage) fuerza la carpeta de datos.</td></tr>
+</table>
+
+<h2 id="motor">6. Motor de lenguaje: llama-server</h2>
+<p><code>motor.asegurar(perfil)</code> arranca, si hace falta, este comando y espera a que <code>/health</code> responda (hasta una hora, por si está descargando):</p>
+<pre><code>llama-server --host 127.0.0.1 --port 8766 -c &lt;contexto&gt; -ngl 99 --alias local --jinja --no-webui \
+             -hf Qwen/Qwen3-8B-GGUF:Q4_K_M [--offline]</code></pre>
+<ul>
+  <li>Los modelos se descargan con <code>-hf</code> a <code>LLAMA_CACHE=modelos/llama</code>. <code>cerebro preparar --modelos</code> arranca cada perfil una vez para dejarlos en caché.</li>
+  <li>Las peticiones van a <code>/v1/chat/completions</code> con <code>chat_template_kwargs: {"enable_thinking": false}</code> (Qwen3 sin razonamiento visible). Además se quitan los bloques <code>&lt;think&gt;</code> si aparecen.</li>
+  <li>Las imágenes se envían como <code>image_url</code> con data URI. El perfil <code>vision</code> carga el mmproj automáticamente con <code>-hf</code>.</li>
+  <li><code>motor.reservar(perfil)</code> devuelve un candado: Cognee y las recetas no se pisan cambiando de modelo a mitad de un trabajo.</li>
+  <li>Windows: <code>CREATE_NO_WINDOW</code>. Salida en <code>datos/estado/llama-server.log</code>.</li>
+</ul>
+<p><b>Cambiar de modelo:</b> edita el perfil, por ejemplo <code>hf: unsloth/gemma-3-4b-it-GGUF:Q4_K_M</code>, o usa un archivo local con <code>modelo: C:/modelos/x.gguf</code>. Cognee usa siempre el alias <code>local</code>, así que no hay que tocar nada más.</p>
+
+<h2 id="voz">7. Voz: sherpa-onnx</h2>
+<table>
+  <tr><th>Modelo</th><th>Archivo de origen (k2-fsa/sherpa-onnx releases)</th></tr>
+  <tr><td>ASR</td><td><code>asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8</code> (25 idiomas europeos, incluido español)</td></tr>
+  <tr><td>VAD</td><td><code>asr-models/silero_vad.onnx</code></td></tr>
+  <tr><td>Segmentación</td><td><code>speaker-segmentation-models/sherpa-onnx-pyannote-segmentation-3-0</code></td></tr>
+  <tr><td>Huella de voz</td><td><code>speaker-recongition-models/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx</code></td></tr>
+</table>
+<p>Proceso de <code>voz.transcribir(ruta, separar)</code>: decodificar con PyAV a 16 kHz mono float32; separar por personas (diarización, con fusión de turnos consecutivos de la misma persona) o por silencios (VAD); reconocer cada tramo en trozos de 25 s como máximo. Devuelve <code>{segmentos, texto, duracion, personas}</code>. El texto tiene el formato <code>[mm:ss] Persona N: …</code>.</p>
+
+<h2 id="memoria">8. Memoria: Cognee y el avatar</h2>
+<p><code>memoria._entorno()</code> configura Cognee antes de importarlo:</p>
+<pre><code>LLM_PROVIDER=custom  LLM_MODEL=openai/local  LLM_ENDPOINT=http://127.0.0.1:8766/v1  LLM_API_KEY=.
+LLM_INSTRUCTOR_MODE=json_schema_mode          # salida estructurada vía gramática de llama.cpp
+EMBEDDING_PROVIDER=fastembed  EMBEDDING_MODEL=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+EMBEDDING_DIMENSIONS=384  FASTEMBED_CACHE_PATH=modelos/fastembed
+SYSTEM_ROOT_DIRECTORY / DATA_ROOT_DIRECTORY = datos/memoria
+ENABLE_BACKEND_ACCESS_CONTROL=false  REQUIRE_AUTHENTICATION=false  TELEMETRY_DISABLED=true</code></pre>
+<ul>
+  <li><b>Aprender:</b> <code>cognee.remember(texto, dataset_name="cerebro", self_improvement=False)</code>, siempre con el motor reservado en el perfil <code>texto</code>.</li>
+  <li><b>Preguntar:</b> <code>cognee.recall(query_text=…, datasets=["cerebro"], system_prompt=SISTEMA, top_k=10)</code>. Si no hay respuesta útil, se responde con las notas más parecidas como contexto.</li>
+  <li><b>Grafo para el avatar:</b> <code>await get_graph_engine()</code> y luego <code>get_graph_data()</code>. Se ocultan los nodos internos (<code>DocumentChunk</code>, <code>TextSummary</code>, <code>NodeSet</code>). La categoría de cada entidad sale de su <code>EntityType</code> (relación <code>is_a</code>): persona, organización, tema, tarea, decisión, fecha… Los documentos pasan a ser «fuente». Se envían como máximo <code>max_nodos_avatar</code>, priorizando los más conectados.</li>
+</ul>
+<p>Las notas Markdown son la fuente de verdad: si la base de Cognee se corrompe o cambias de modelo de embeddings, borra <code>datos/memoria</code> y vuelve a aprender las notas.</p>
+
+<h2 id="recetas">9. Recetas y trabajos</h2>
+<p>Una receta es un YAML con <code>nombre</code>, <code>descripcion</code>, <code>cuando.extensiones</code>, <code>prioridad</code> y <code>pasos</code>. Cada paso es un mapa de una sola clave entre <code>transcribir, preguntar_llm, describir_imagen, guardar_nota, recordar, avisar</code>. Al guardar se valida y, si hay un error, se rechaza con un mensaje.</p>
+<ul>
+  <li><b>Selección:</b> receta explícita (formulario o app) &gt; subcarpeta de la bandeja con el id de la receta &gt; extensión, con menor <code>prioridad</code>.</li>
+  <li><b>Contexto:</b> <code>archivo, nombre, fecha, hora</code> y lo que añaden los pasos: <code>transcripcion, duracion, personas, contenido</code> (texto), <code>nota</code> (texto de la última nota) y cada <code>guardar_como</code>. <code>rellenar()</code> solo sustituye las llaves conocidas, así que puede haber JSON literal en un prompt.</li>
+  <li><b>trocear:</b> si la entrada supera N palabras, se procesa por trozos y después se unen con un prompt de síntesis (<code>prompt_union</code> opcional).</li>
+  <li><b>Persistencia:</b> <code>datos/estado/trabajos.json</code>. Al reiniciar se reanudan los trabajos pendientes. Los originales se mueven a <code>datos/archivo/AAAA-MM</code>.</li>
+  <li><b>Vigilante de bandeja:</b> sondea cada 3 s y solo encola un archivo cuando su tamaño deja de cambiar, para no leer copias a medias.</li>
+  <li><b>Cola nocturna:</b> <code>recordar</code> con <code>de_noche: true</code> escribe en <code>memoria_pendiente.json</code>. El reloj nocturno o <code>POST /api/memoria/aprender</code> la vacían.</li>
+</ul>
+
+<h2 id="api">10. API HTTP y WebSocket</h2>
+<table>
+  <tr><th>Método y ruta</th><th>Descripción</th></tr>
+  <tr><td><code>GET /api/estado</code></td><td>Versión, modo, motor cargado, perfiles, pendientes de memoria.</td></tr>
+  <tr><td><code>GET /api/grafo?forzar=1</code></td><td>Nodos y aristas para el avatar (con caché).</td></tr>
+  <tr><td><code>POST /api/preguntar</code></td><td><code>{"texto"}</code> → <code>{respuesta, fuentes, nodos}</code></td></tr>
+  <tr><td><code>POST /api/preguntar_audio</code></td><td>multipart <code>audio</code> → transcribe y responde (incluye <code>pregunta</code>).</td></tr>
+  <tr><td><code>POST /api/subir</code></td><td>multipart <code>archivo</code> [+ <code>receta</code>] → crea un trabajo.</td></tr>
+  <tr><td><code>POST /api/texto</code></td><td><code>{"texto"}</code> → lo guarda como .txt en la bandeja.</td></tr>
+  <tr><td><code>GET /api/trabajos</code> · <code>POST /api/trabajos/{id}/reintentar</code></td><td>Bandeja.</td></tr>
+  <tr><td><code>POST /api/memoria/aprender</code></td><td>Procesa ahora la cola nocturna.</td></tr>
+  <tr><td><code>GET /api/notas</code> · <code>GET /api/notas/{ruta}</code></td><td>Lista y contenido de notas.</td></tr>
+  <tr><td><code>GET /api/recetas</code> · <code>GET|PUT|DELETE /api/recetas/{id}</code></td><td>Recetas. <code>PUT</code> recibe el YAML como <code>text/plain</code>.</td></tr>
+  <tr><td><code>WS /ws</code></td><td>Eventos en tiempo real.</td></tr>
+</table>
+<p><b>Eventos del WebSocket</b> (<code>{"tipo": …, …}</code>): <code>avatar</code> (estado y texto; los clientes también lo envían para sincronizar pantallas), <code>preparacion</code> (descargas con progreso), <code>trabajo</code> (cambios en la bandeja), <code>grafo_actualizado</code>, <code>memoria</code>, <code>recetas</code>, <code>respuesta</code> y <code>aviso</code>.</p>
+
+<h2 id="android">11. App Android</h2>
+<p>Es un proyecto Gradle en Java (minSdk 26, targetSdk 34) sin dependencias externas. Carga la interfaz web del PC en una WebView y añade lo que el navegador no permite por <code>http</code>:</p>
+<table>
+  <tr><th>Clase</th><th>Función</th></tr>
+  <tr><td><code>Principal</code></td><td>WebView, dirección del servidor (SharedPreferences), selector de archivos, intents de compartir (<code>SEND</code> y <code>SEND_MULTIPLE</code>), reenvío de grabaciones pendientes, página sin conexión.</td></tr>
+  <tr><td><code>Grabacion</code></td><td>Servicio en primer plano (<code>foregroundServiceType=microphone</code>) con MediaRecorder AAC mono a 16 kHz y 32 kbps (unos 15 MB por hora) y WakeLock parcial.</td></tr>
+  <tr><td><code>Puente</code></td><td><code>window.CerebroNativo</code>: <code>empezar(tipo)</code>, <code>estado()</code>, <code>parar(receta)</code>, <code>hablar(texto)</code>, <code>configurar()</code>, <code>servidor()</code>. Devuelve resultados con <code>window.cerebroNativo(evento, datos)</code>: <code>subido</code>, <code>respuesta</code>, <code>error</code>, <code>fin_voz</code>.</td></tr>
+  <tr><td><code>Envio</code></td><td>Subida multipart por streaming con HttpURLConnection.</td></tr>
+</table>
+<p><code>app.js</code> detecta el puente y usa <code>GrabadoraNativa</code> en lugar de MediaRecorder. La misma interfaz sirve para el navegador y para la app.</p>
+
+<h2 id="paquetes">12. Empaquetado y compilación</h2>
+<h3>Linux: <code>empaquetar/construir-linux.sh</code></h3>
+<ol>
+  <li><code>conda_paquetes.py</code> descarga de conda-forge, sin instalar conda, Python 3.12 y <code>llama.cpp 9923 cuda129</code> (backends CUDA 12.9, Vulkan y CPU) con sus librerías: cuBLAS 12.9, cudart, OpenSSL, libcurl, etc. Resuelve dependencias y restricciones de versión, y desempaqueta los <code>.conda</code> o <code>.tar.bz2</code>.</li>
+  <li>Añade <code>libcuda.so.1</code> stub del CUDA Toolkit. Sin driver NVIDIA, llama.cpp arranca igual y usa Vulkan o la CPU.</li>
+  <li>Instala las ruedas <code>cp312-manylinux</code> fijadas en <code>requisitos-fijados.txt</code> con <code>pip --target --platform</code>. Las que solo existen como código fuente se convierten antes en rueda.</li>
+  <li>Quita lo que no se usa: herramientas llama-* salvo el servidor, cabeceras, librerías estáticas, tests, tkinter, idle y cachés.</li>
+  <li>Copia la aplicación, <code>AppRun</code> y los <code>.deb</code> del driver NVIDIA para los kernels indicados en <code>NVIDIA_KERNELS</code>.</li>
+  <li>Crea el AppImage con <code>appimagetool --comp zstd</code>. Si no hay appimagetool, deja <code>Cerebro-linux-x86_64.tar.zst</code>, que funciona igual con <code>./AppRun</code>.</li>
+</ol>
+<p><b>AppRun</b> elige la carpeta de datos (<code>cerebro-datos</code> junto al AppImage, o <code>~/cerebro-datos</code> si no se puede escribir ahí), copia la configuración y las recetas la primera vez, fija <code>LD_LIBRARY_PATH</code> (con el stub solo si no hay libcuda del sistema), activa el modo sin conexión si ya hay modelos y lanza <code>python3.12 -s -P -m cerebro</code>. Órdenes extra: <code>activar-nvidia</code> y <code>preparar-usb</code>.</p>
+<h3>Windows: <code>empaquetar/construir-windows.sh</code></h3>
+<p>Se ejecuta en Linux o en CI, sin ejecutar nada de Windows. Usa Python 3.12.10 oficial (paquete NuGet), ruedas <code>win_amd64</code> de <code>requisitos-windows.txt</code> y llama.cpp CUDA 12.9 de conda-forge. Solo copia las DLL que llama-server carga de verdad: el cierre de importaciones PE, unas 20 DLL. Si el PC no tiene NVIDIA, <code>descargas.binario_llama()</code> salta la carpeta <code>motor/cuda</code> y descarga la versión Vulkan oficial.</p>
+<p><b>Servicio sin sesión:</b> <code>instalar-servicio.bat</code> crea una tarea del Programador (<code>/SC ONSTART /RU SYSTEM</code>) que ejecuta <code>servicio.cmd</code>, y una regla de cortafuegos para el puerto 8765 en redes privadas. CUDA funciona en la sesión 0 sin escritorio.</p>
+<h3>Android</h3>
+<pre><code>gradle -p android assembleRelease      # JDK 17 + Android SDK 34; APK firmado con la clave debug</code></pre>
+<h3>GitHub Actions: <code>.github/workflows/compilar.yml</code></h3>
+<p>Tres trabajos en paralelo (android, linux y windows) y, al subir una etiqueta <code>v*</code>, la publicación de los tres archivos en Releases. Se lanza con <code>git tag v1.0.0 &amp;&amp; git push --tags</code> o a mano desde la pestaña Actions.</p>
+
+<h2 id="live">13. Live de Ubuntu 24.04 con NVIDIA sin conexión</h2>
+<p>Ubuntu publica módulos NVIDIA precompilados y <b>firmados por Canonical</b> para cada kernel (<code>linux-modules-nvidia-580-open-&lt;kernel&gt;</code>). Por eso se puede activar la GPU en una sesión live sin compilar nada, sin DKMS y con Secure Boot activo.</p>
+<p><code>nvidia_debs.py &lt;kernel&gt;</code> lee los índices de <code>noble-updates</code> y <code>noble-security</code>, toma la versión de driver que exige ese módulo y descarga del pool exactamente esa versión de: módulo, <code>nvidia-kernel-common-580</code>, <code>nvidia-firmware-580-&lt;v&gt;</code> (firmware GSP), <code>libnvidia-compute-580</code> (libcuda) y <code>nvidia-utils-580</code> (nvidia-smi), además de <code>ocl-icd-libopencl1</code>. Son unos 138 MB por kernel. Vienen incluidos los kernels <code>6.17.0-14-generic</code> (driver 580.126.09) y <code>7.0.0-14-generic</code> (580.159.03).</p>
+<p><code>activar-nvidia.sh</code>:</p>
+<ol>
+  <li>busca los paquetes del <code>uname -r</code> actual en el USB o dentro del AppImage;</li>
+  <li>descarga <code>nouveau</code> (si está en uso, indica el parámetro de arranque);</li>
+  <li>ejecuta <code>dpkg -i --force-depends</code> y <code>depmod</code>;</li>
+  <li>carga <code>nvidia</code> y <code>nvidia_uvm</code>, y crea <code>/dev/nvidia*</code> si faltan;</li>
+  <li>comprueba con <code>nvidia-smi</code>.</li>
+</ol>
+<p>Todo vive en el overlay de la live y desaparece al apagar.</p>
+<div class="caja aviso">Driver 580 = CUDA 13.0 como máximo. llama.cpp va compilado con CUDA 12.9, que necesita un driver 575 o superior. La combinación es compatible.</div>
+
+<h2 id="seguridad">14. Seguridad y límites conocidos</h2>
+<ul>
+  <li><b>Sin autenticación.</b> El servidor escucha en <code>0.0.0.0:8765</code> para que el móvil entre por la Wi-Fi. Úsalo en tu red de casa o en Tailscale; no abras el puerto en el router. Para uso solo local, pon <code>host: 127.0.0.1</code>.</li>
+  <li>La app Android permite tráfico <code>http</code> (<code>usesCleartextTraffic</code>) porque el servidor es local. Con Tailscale el tráfico va cifrado de todos modos.</li>
+  <li>llama-server solo escucha en <code>127.0.0.1</code>.</li>
+  <li>Calidad: un 8B cuantizado extrae entidades peor que un modelo grande. Por eso las notas Markdown son la fuente de verdad, y el grafo se puede regenerar con un modelo mejor.</li>
+  <li><b>Verificado en el entorno de desarrollo:</b> API, recetas de principio a fin, interfaz web (escritorio y móvil, sin errores de consola), puente Android simulado, TUI, decodificación con PyAV y configuración de sherpa-onnx, todo en modo simulado. También el enlazado de los binarios incluidos: todas las librerías ELF y DLL que se cargan están en el paquete.</li>
+  <li><b>No verificado aún, porque el entorno de compilación no tiene GPU ni acceso a Hugging Face o GitHub:</b> inferencia real con llama-server, extracción de Cognee con Qwen3-8B, modelos de voz reales, arranque del Python empaquetado y compilación del APK (se hace en GitHub Actions). Son las primeras pruebas recomendadas en el Victus.</li>
+</ul>
+
+</body>
+</html>

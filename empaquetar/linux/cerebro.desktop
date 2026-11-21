@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Cerebro local
+Comment=Asistente 100% local con memoria (Cognee) y llama.cpp
+Exec=AppRun
+Icon=cerebro
+Terminal=true
+Categories=Utility;

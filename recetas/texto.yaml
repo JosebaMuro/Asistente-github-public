@@ -1,0 +1,33 @@
+nombre: Texto o enlace
+descripcion: Guarda un texto compartido desde el móvil (o un .txt/.md copiado a la bandeja) con un resumen, y lo añade a la memoria.
+cuando:
+  extensiones: [.txt, .md]
+prioridad: 10
+
+pasos:
+  - preguntar_llm:
+      perfil: rapido
+      entrada: contenido
+      trocear: 2500
+      guardar_como: resumen
+      max_tokens: 400
+      prompt: |
+        Resume en español en 3-5 viñetas lo importante de este texto:
+        {contenido}
+
+  - guardar_nota:
+      carpeta: textos
+      titulo: "{nombre}"
+      contenido: |
+        # {nombre}
+
+        {resumen}
+
+        ## Texto original
+
+        {contenido}
+
+  - recordar:
+      titulo: "{nombre}"
+      contenido: "{nota}"
+      de_noche: true

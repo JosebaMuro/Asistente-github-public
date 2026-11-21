@@ -1,0 +1,45 @@
+#!/bin/bash
+# Cerebro local: arranque del AppImage (o de la carpeta AppDir descomprimida).
+# Todo lo que se escribe (datos, memoria, modelos) va a una carpeta "cerebro-datos"
+# junto al AppImage, para que en un live USB no se pierda al apagar.
+set -e
+AQUI="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+U="$AQUI/usr"
+
+if [ -n "$CEREBRO_DATOS" ]; then DATOS="$CEREBRO_DATOS"
+else
+  JUNTO="$(dirname "$(readlink -f "${APPIMAGE:-$AQUI}")")/cerebro-datos"
+  if mkdir -p "$JUNTO" 2>/dev/null && [ -w "$JUNTO" ]; then DATOS="$JUNTO"; else DATOS="$HOME/cerebro-datos"; fi
+fi
+mkdir -p "$DATOS"
+[ -f "$DATOS/config.yaml" ] || cp "$AQUI/app/config.yaml" "$DATOS/config.yaml"
+[ -d "$DATOS/recetas" ] || cp -r "$AQUI/app/recetas" "$DATOS/recetas"
+
+# Herramientas de la live: drivers NVIDIA y preparación del USB
+case "$1" in
+  activar-nvidia) shift; exec sudo bash "$AQUI/nvidia/activar-nvidia.sh" "$AQUI/nvidia" "$DATOS/nvidia" "$@" ;;
+  preparar-usb)   shift; exec bash "$AQUI/nvidia/preparar-usb.sh" "$DATOS" "$@" ;;
+esac
+
+export CEREBRO_RAIZ="$DATOS"
+export CEREBRO_LLAMA="$U/bin/llama-server"
+export PYTHONHOME="$U"
+export PYTHONNOUSERSITE=1
+export PYTHONDONTWRITEBYTECODE=1
+export PYTHONPATH="$AQUI/app"
+LIBS="$U/lib:$U/targets/x86_64-linux/lib"
+# Sin driver NVIDIA no existe libcuda.so.1: se usa un sustituto vacío para que
+# llama.cpp arranque igualmente y tire de Vulkan o de la CPU.
+if ! /sbin/ldconfig -p 2>/dev/null | grep -q "libcuda.so.1 " && [ ! -e /usr/lib/x86_64-linux-gnu/libcuda.so.1 ]; then
+  LIBS="$LIBS:$U/lib/cuda-stub"
+  echo "[cerebro] Sin driver NVIDIA: se usará Vulkan o CPU (ejecuta '$0 activar-nvidia' para la GPU)" >&2
+fi
+export LD_LIBRARY_PATH="$LIBS${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+# Si ya hay modelos descargados, no se toca la red (modo autónomo)
+if [ -z "$CEREBRO_OFFLINE" ] && [ -n "$(ls -A "$DATOS/modelos/llama" 2>/dev/null)" ]; then
+  export CEREBRO_OFFLINE=1
+fi
+if [ "$CEREBRO_OFFLINE" = "1" ]; then export HF_HUB_OFFLINE=1; fi
+export SSL_CERT_FILE="${SSL_CERT_FILE:-$U/ssl/cacert.pem}"
+cd "$DATOS"
+exec "$U/bin/python3.12" -s -P -m cerebro "$@"

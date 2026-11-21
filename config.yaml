@@ -1,0 +1,53 @@
+# Configuración de Cerebro local.
+# Las rutas relativas se resuelven desde la carpeta donde está este archivo.
+
+# real: usa llama.cpp, sherpa-onnx y Cognee.
+# simulado: datos de ejemplo, sin modelos. Sirve para probar la interfaz.
+modo: real
+
+servidor:
+  host: 0.0.0.0        # 0.0.0.0 permite entrar desde el móvil por la red o por Tailscale
+  puerto: 8765
+
+rutas:
+  bandeja: ./datos/bandeja        # aquí caen las capturas del móvil (o copia archivos a mano)
+  archivo: ./datos/archivo        # originales ya procesados
+  notas: ./datos/notas            # notas en Markdown: la fuente de verdad
+  estado: ./datos/estado          # trabajos, cola nocturna
+  memoria: ./datos/memoria        # bases de datos de Cognee
+  modelos: ./modelos              # modelos de voz y caché de llama.cpp
+  motor: ./motor                  # binarios de llama.cpp
+  recetas: ./recetas
+
+# llama.cpp: la app arranca llama-server ella misma y cambia de modelo por turnos.
+llama:
+  binario: ""          # vacío = se descarga solo en ./motor la primera vez
+  variante: auto       # auto | cuda | vulkan | cpu
+  puerto: 8766
+  capas_gpu: 99        # capas en GPU; baja este número si falta VRAM
+  descargar_tras_minutos: 10   # libera la VRAM si nadie lo usa
+  perfiles:
+    texto:             # resúmenes, respuestas y grafo de Cognee
+      hf: Qwen/Qwen3-8B-GGUF:Q4_K_M
+      contexto: 8192
+    rapido:            # respuestas cortas
+      hf: Qwen/Qwen3-4B-GGUF:Q4_K_M
+      contexto: 4096
+    vision:            # fotos y capturas de pantalla
+      hf: ggml-org/Qwen2.5-VL-3B-Instruct-GGUF:Q4_K_M
+      contexto: 4096
+  perfil_chat: texto
+
+# Voz: todo en CPU con sherpa-onnx, así la GPU queda libre para el LLM.
+voz:
+  hilos: 4
+  separar_voces: true   # quién habla en cada momento
+  umbral_voces: 0.5     # más alto = menos personas detectadas
+  num_personas: -1      # -1 = detectar automáticamente
+
+memoria:
+  dataset: cerebro
+  embeddings: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+  dimensiones: 384
+  hora_nocturna: 3       # hora a la que se procesa la cola de memoria
+  max_nodos_avatar: 350
