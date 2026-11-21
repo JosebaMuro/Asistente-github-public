@@ -29,6 +29,13 @@ ln -sf libgomp.so.1.0.0 "$APPDIR/usr/lib/libgomp.so.1"  # el enlace lo pone _ope
 mkdir -p "$APPDIR/usr/lib/cuda-stub"
 cp "$CACHE/stub/targets/x86_64-linux/lib/stubs/libcuda.so" "$APPDIR/usr/lib/cuda-stub/libcuda.so.1"
 
+# Vulkan: se usa el cargador del sistema (encuentra Mesa RADV/ANV y el de NVIDIA); el incluido solo si falta
+mkdir -p "$APPDIR/usr/lib/vulkan-respaldo"
+mv "$APPDIR"/usr/lib/libvulkan.so* "$APPDIR/usr/lib/vulkan-respaldo/"
+echo "   llama.cpp oficial con ROCm para AMD"
+"$PY" "$RAIZ/empaquetar/llama_oficial.py" --patron 'bin-ubuntu-rocm-[\d.]+-x64\.(tar\.gz|zip)$' --destino "$APPDIR/usr/rocm" \
+  || echo "   (aviso: sin versión ROCm; las AMD usarán Vulkan)"
+
 echo "== 2/6 Dependencias de Python (ruedas para cp312 / manylinux)"
 SP="$APPDIR/usr/lib/python3.12/site-packages"
 PLAT=""

@@ -33,6 +33,9 @@ jobs:
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
       - run: sudo apt-get update && sudo apt-get install -y zstd
       - run: empaquetar/construir-linux.sh
+        env: { GITHUB_TOKEN: "${{ github.token }}" }
+      - name: Comprobar tamaño (GitHub Releases admite hasta 2 GiB por archivo)
+        run: ls -la dist/Cerebro-x86_64.AppImage && test $(stat -c%s dist/Cerebro-x86_64.AppImage) -lt 2147483648
       - uses: actions/upload-artifact@v4
         with: { name: linux, path: dist/Cerebro-x86_64.AppImage, compression-level: 0 }
 
@@ -41,6 +44,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: empaquetar/construir-windows.sh
+        env: { GITHUB_TOKEN: "${{ github.token }}" }
       - uses: actions/upload-artifact@v4
         with: { name: windows, path: dist/Cerebro-windows-x64.zip, compression-level: 0 }
 

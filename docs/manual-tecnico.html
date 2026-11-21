@@ -8,7 +8,7 @@
 <body>
 
 <section class="portada">
-  <div class="marca">Cerebro local · versión 1.0</div>
+  <div class="marca">Cerebro local · versión 1.1</div>
   <h1>Manual técnico</h1>
   <p>Arquitectura, decisiones de diseño, configuración, API, recetas, memoria, empaquetado y despliegue en una sesión live de Ubuntu 24.04 con CUDA.</p>
   <div class="meta">Para quien quiera entender, modificar o recompilar Cerebro.</div>
@@ -79,6 +79,7 @@
 <h2 id="decisiones">2. Decisiones: qué se usa y qué se ha quitado</h2>
 <table>
   <tr><th>Capa</th><th>Elegido</th><th>Descartado y por qué</th></tr>
+  <tr><td>GPU</td><td>CUDA (NVIDIA), ROCm/HIP (AMD) y Vulkan (cualquiera), elegidos en el arranque</td><td>Un único backend: dejaría fuera a AMD o rendiría peor en NVIDIA. ROCm completo instalado en el sistema: varios GB; se usa la compilación oficial de llama.cpp, que lleva solo lo necesario.</td></tr>
   <tr><td>LLM</td><td><b>llama-server</b> (llama.cpp) lanzado directamente como subproceso</td><td>Ollama: es otra capa (servicio, API propia, copia de modelos) sobre el mismo llama.cpp. Lanzar llama-server ahorra RAM y un proceso residente, y deja controlar contexto, capas en GPU y descarga de VRAM.</td></tr>
   <tr><td>Transcripción</td><td>sherpa-onnx + Parakeet TDT 0.6B v3 int8 en CPU</td><td>Whisper en GPU: competiría por los 6 GB con el LLM. PyTorch: más de 2 GB de dependencias.</td></tr>
   <tr><td>Quién habla</td><td>sherpa-onnx: pyannote segmentation 3.0 + 3D-Speaker ERes2Net</td><td>pyannote.audio: necesita PyTorch y token de Hugging Face.</td></tr>
@@ -132,7 +133,8 @@ empaquetar/     construir-linux.sh · construir-windows.sh · conda_paquetes.py
   <tr><td><code>servidor.host / puerto</code></td><td><code>0.0.0.0 / 8765</code></td><td>Usa <code>127.0.0.1</code> para que solo se acceda desde el PC.</td></tr>
   <tr><td><code>rutas.*</code></td><td><code>./datos/...</code></td><td>bandeja, archivo, notas, estado, memoria, modelos, motor, recetas.</td></tr>
   <tr><td><code>llama.binario</code></td><td>vacío</td><td>Ruta a un llama-server propio. Vacío: se busca en <code>motor/</code> o se descarga.</td></tr>
-  <tr><td><code>llama.variante</code></td><td><code>auto</code></td><td><code>cuda | vulkan | cpu</code> para la descarga automática.</td></tr>
+  <tr><td><code>llama.variante</code></td><td><code>auto</code></td><td><code>cuda | rocm | vulkan | cpu</code>: fuerza el tipo de motor (y lo que se descarga si no hay ninguno incluido).</td></tr>
+  <tr><td><code>llama.dispositivo</code></td><td>vacío</td><td>GPU concreta para <code>--device</code>: <code>CUDA0</code>, <code>ROCm0</code>, <code>Vulkan1</code> o <code>none</code> (CPU).</td></tr>
   <tr><td><code>llama.capas_gpu</code></td><td><code>99</code></td><td>Valor de <code>-ngl</code>. Bájalo si falta VRAM.</td></tr>
   <tr><td><code>llama.descargar_tras_minutos</code></td><td><code>10</code></td><td>Libera la VRAM tras ese tiempo sin uso.</td></tr>
   <tr><td><code>llama.perfiles.&lt;n&gt;</code></td><td>texto, rapido, vision</td><td><code>hf: repo:quant</code> o <code>modelo:</code> (+ <code>mmproj:</code>) con archivo local; <code>contexto</code>; <code>extra:</code> lista de argumentos.</td></tr>
@@ -148,7 +150,7 @@ empaquetar/     construir-linux.sh · construir-windows.sh · conda_paquetes.py
   <tr><td><code>CEREBRO_RAIZ</code></td><td>Carpeta de datos y configuración (la usa el AppImage).</td></tr>
   <tr><td><code>CEREBRO_CONFIG</code></td><td>Ruta a otro config.yaml.</td></tr>
   <tr><td><code>CEREBRO_MODO</code></td><td><code>real</code> o <code>simulado</code>.</td></tr>
-  <tr><td><code>CEREBRO_LLAMA</code></td><td>Ruta del llama-server incluido en el paquete.</td></tr>
+  <tr><td><code>CEREBRO_LLAMA</code></td><td>Lista (separada por <code>:</code> o <code>;</code>) de los llama-server incluidos en el paquete.</td></tr>
   <tr><td><code>CEREBRO_OFFLINE=1</code></td><td>Añade <code>--offline</code> a llama-server y <code>HF_HUB_OFFLINE=1</code>: solo caché local.</td></tr>
   <tr><td><code>CEREBRO_DATOS</code></td><td>(AppImage) fuerza la carpeta de datos.</td></tr>
 </table>
@@ -164,6 +166,13 @@ empaquetar/     construir-linux.sh · construir-windows.sh · conda_paquetes.py
   <li><code>motor.reservar(perfil)</code> devuelve un candado: Cognee y las recetas no se pisan cambiando de modelo a mitad de un trabajo.</li>
   <li>Windows: <code>CREATE_NO_WINDOW</code>. Salida en <code>datos/estado/llama-server.log</code>.</li>
 </ul>
+<h3>Elección de GPU y motor</h3>
+<p>En el primer arranque de la sesión, <code>motor.elegir()</code> ejecuta <code>llama-server --list-devices</code> con cada motor disponible (los incluidos y los de <code>motor/</code>) y puntúa cada dispositivo: primero las tarjetas dedicadas frente a las integradas; después CUDA &gt; ROCm &gt; Vulkan &gt; SYCL; y por último más memoria. El elegido se pasa con <code>--device</code>, lo que también evita que la misma NVIDIA se use dos veces (como CUDA0 y como Vulkan0). Si un motor no arranca porque falta su driver, simplemente no ve dispositivos. Sin GPU se usa <code>--device none</code>. Cada llama-server se lanza con su propia carpeta al principio de <code>LD_LIBRARY_PATH</code> para no mezclar librerías.</p>
+<table>
+  <tr><th>Paquete</th><th>Motores incluidos</th></tr>
+  <tr><td>Windows</td><td><code>motor/cuda</code> (conda-forge, CUDA 12.9 + Vulkan) · <code>motor/rocm</code> (oficial, HIP/ROCm) · <code>motor/vulkan</code> (oficial)</td></tr>
+  <tr><td>Linux AppImage</td><td><code>usr/bin</code> (conda-forge, CUDA 12.9 + Vulkan, con stub de libcuda) · <code>usr/rocm</code> (oficial, ROCm). Vulkan usa el cargador del sistema (Mesa RADV para AMD); el incluido solo si falta.</td></tr>
+</table>
 <p><b>Cambiar de modelo:</b> edita el perfil, por ejemplo <code>hf: unsloth/gemma-3-4b-it-GGUF:Q4_K_M</code>, o usa un archivo local con <code>modelo: C:/modelos/x.gguf</code>. Cognee usa siempre el alias <code>local</code>, así que no hay que tocar nada más.</p>
 
 <h2 id="voz">7. Voz: sherpa-onnx</h2>

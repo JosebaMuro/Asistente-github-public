@@ -66,6 +66,11 @@ for n in vistos: shutil.copy2(todos[n], destino)
 print(len(vistos), "archivos")
 PYEOF
 
+echo "== 3b/4 llama.cpp oficial para AMD: ROCm (HIP) y Vulkan (cualquier GPU)"
+"$PY" "$RAIZ/empaquetar/llama_oficial.py" --patron 'bin-win-(rocm|hip)[-\w.]*-x64\.zip$' --destino "$W/motor/rocm" \
+  || echo "   (aviso: sin versión ROCm; las AMD usarán Vulkan)"
+"$PY" "$RAIZ/empaquetar/llama_oficial.py" --patron 'bin-win-vulkan-x64\.zip$' --destino "$W/motor/vulkan"
+
 echo "== 4/4 Aplicación y lanzadores"
 cp -r "$RAIZ/cerebro" "$RAIZ/web" "$RAIZ/recetas" "$RAIZ/config.yaml" "$W/"
 find "$W/cerebro" -name "__pycache__" -type d -prune -exec rm -rf {} +

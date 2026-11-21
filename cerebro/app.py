@@ -78,7 +78,9 @@ async def estado():
     return {
         "version": VERSION, "modo": CONFIG["modo"],
         "motor": {"cargado": motor.perfil if motor.vivo() else None,
-                  "binario": str(descargas.binario_llama() or ""), "variante": descargas.variante()},
+                  "binario": str(descargas.binario_llama() or ""),
+                  "variante": (motor.eleccion or {}).get("tipo") or descargas.variante(),
+                  "gpu": (motor.eleccion or {}).get("nombre")},
         "perfiles": {k: v.get("hf") or v.get("modelo") for k, v in motor.perfiles().items()},
         "trabajos": {"en_cola": g.cola.qsize(), "total": len(g.lista)},
         "memoria_pendiente": len(g.noche),

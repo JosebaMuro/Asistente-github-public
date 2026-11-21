@@ -10,5 +10,6 @@ CEREBRO LOCAL para Windows (portable, no se instala)
    instalar-servicio.bat (http://IP-de-tu-PC:8765).
 
 Terminal: Cerebro-TUI.bat
-GPU: driver de NVIDIA 576 o superior (CUDA 12.9). Sin él usa Vulkan o CPU.
+GPU: NVIDIA (driver 576 o superior, CUDA 12.9) o AMD Radeon (driver Adrenalin: ROCm o Vulkan).
+Cerebro elige solo la mejor GPU. Sin GPU usa la CPU.
 Manuales completos: Manual-de-usuario.pdf y Manual-tecnico.pdf

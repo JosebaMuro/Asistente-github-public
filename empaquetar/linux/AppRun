@@ -22,7 +22,8 @@ case "$1" in
 esac
 
 export CEREBRO_RAIZ="$DATOS"
-export CEREBRO_LLAMA="$U/bin/llama-server"
+# Motores incluidos: CUDA+Vulkan (conda-forge) y ROCm (oficial). Cerebro prueba cuál ve tu GPU.
+export CEREBRO_LLAMA="$U/bin/llama-server:$U/rocm/llama-server"
 export PYTHONHOME="$U"
 export PYTHONNOUSERSITE=1
 export PYTHONDONTWRITEBYTECODE=1
@@ -32,8 +33,11 @@ LIBS="$U/lib:$U/targets/x86_64-linux/lib"
 # llama.cpp arranque igualmente y tire de Vulkan o de la CPU.
 if ! /sbin/ldconfig -p 2>/dev/null | grep -q "libcuda.so.1 " && [ ! -e /usr/lib/x86_64-linux-gnu/libcuda.so.1 ]; then
   LIBS="$LIBS:$U/lib/cuda-stub"
-  echo "[cerebro] Sin driver NVIDIA: se usará Vulkan o CPU (ejecuta '$0 activar-nvidia' para la GPU)" >&2
+  if grep -qs 0x10de /sys/class/drm/card*/device/vendor; then
+    echo "[cerebro] Tarjeta NVIDIA sin driver: ejecuta '$0 activar-nvidia' para usarla. Mientras, Vulkan o CPU." >&2
+  fi
 fi
+if ! /sbin/ldconfig -p 2>/dev/null | grep -q "libvulkan.so.1 "; then LIBS="$LIBS:$U/lib/vulkan-respaldo"; fi
 export LD_LIBRARY_PATH="$LIBS${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 # Si ya hay modelos descargados, no se toca la red (modo autónomo)
 if [ -z "$CEREBRO_OFFLINE" ] && [ -n "$(ls -A "$DATOS/modelos/llama" 2>/dev/null)" ]; then

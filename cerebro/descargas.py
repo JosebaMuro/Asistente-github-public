@@ -50,28 +50,72 @@ def es_windows() -> bool:
 
 
 def binario_llama() -> Path | None:
+    """El llama-server que se usará: el de config, el elegido por el motor o el primero que haya."""
     propio = CONFIG["llama"].get("binario")
     if propio:
         p = Path(propio)
         return p if p.exists() else None
+    from .motor import motor  # evita import circular
+
+    if motor.eleccion:
+        return motor.eleccion["binario"]
+    c = candidatos()
+    return c[0] if c else None
+
+
+def candidatos() -> list[Path]:
+    """Todos los llama-server disponibles: incluidos en el paquete y descargados en ./motor."""
     nombre = "llama-server.exe" if es_windows() else "llama-server"
-    hay_nvidia = bool(shutil.which("nvidia-smi"))
-    for p in sorted(CONFIG["rutas"]["motor"].rglob(nombre)):
-        # La versión CUDA incluida necesita el driver de NVIDIA; sin él se usa (o descarga) otra
-        if "cuda" in p.parent.name.lower() and not hay_nvidia:
-            continue
-        return p
+    vistos, lista = set(), []
+    for p in [Path(x) for x in CONFIG["llama"].get("incluidos", [])] + sorted(CONFIG["rutas"]["motor"].rglob(nombre)):
+        if p.exists() and p.resolve() not in vistos:
+            vistos.add(p.resolve())
+            lista.append(p)
     en_path = shutil.which("llama-server")
-    return Path(en_path) if en_path else None
+    if en_path and Path(en_path).resolve() not in vistos:
+        lista.append(Path(en_path))
+    return lista
+
+
+def gpus() -> list[str]:
+    """Fabricantes de las tarjetas gráficas del equipo: nvidia, amd, intel."""
+    fab = {"0x10de": "nvidia", "0x1002": "amd", "0x8086": "intel"}
+    vistos: list[str] = []
+    if es_windows():
+        try:
+            import subprocess
+
+            salida = subprocess.run(["powershell", "-NoProfile", "-Command",
+                                     "(Get-CimInstance Win32_VideoController).Name"],
+                                    capture_output=True, text=True, timeout=15,
+                                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout.lower()
+            for clave, nombre in (("nvidia", "nvidia"), ("radeon", "amd"), ("amd", "amd"), ("intel", "intel")):
+                if clave in salida and nombre not in vistos:
+                    vistos.append(nombre)
+        except Exception:  # noqa: BLE001
+            pass
+    else:
+        for v in sorted(Path("/sys/class/drm").glob("card*/device/vendor")):
+            try:
+                n = fab.get(v.read_text().strip())
+            except OSError:
+                continue
+            if n and n not in vistos:
+                vistos.append(n)
+    return vistos
 
 
 def variante() -> str:
+    """Qué llama.cpp descargar si no hay ninguno incluido: cuda | rocm | vulkan | cpu."""
     v = (CONFIG["llama"].get("variante") or "auto").lower()
     if v != "auto":
         return v
-    if shutil.which("nvidia-smi"):
+    g = gpus()
+    if "nvidia" in g or shutil.which("nvidia-smi"):
         return "cuda" if es_windows() else "vulkan"
-    if es_windows() or shutil.which("vulkaninfo"):
+    if "amd" in g:
+        return "rocm"
+    if g or es_windows() or shutil.which("vulkaninfo"):
         return "vulkan"
     return "cpu"
 
@@ -82,10 +126,13 @@ def _patrones(v: str) -> list[tuple[str, str | None]]:
         orden = {
             "cuda": [(r"bin-win-cuda-12[\d.]*-x64\.zip$", r"^cudart-.*win-cuda-12[\d.]*-x64\.zip$"),
                      (r"bin-win-vulkan-x64\.zip$", None)],
+            "rocm": [(r"bin-win-(rocm|hip)[-\w.]*-x64\.zip$", None), (r"bin-win-vulkan-x64\.zip$", None)],
             "vulkan": [(r"bin-win-vulkan-x64\.zip$", None)],
         }.get(v, [])
         return orden + [(r"bin-win-(cpu-)?x64\.zip$", None)]
-    orden = {"vulkan": [(r"bin-ubuntu-vulkan-x64\.(zip|tar\.gz)$", None)]}.get(v, [])
+    orden = {"vulkan": [(r"bin-ubuntu-vulkan-x64\.(zip|tar\.gz)$", None)],
+             "rocm": [(r"bin-ubuntu-rocm-[\d.]+-x64\.(zip|tar\.gz)$", None),
+                      (r"bin-ubuntu-vulkan-x64\.(zip|tar\.gz)$", None)]}.get(v, [])
     return orden + [(r"bin-ubuntu-x64\.(zip|tar\.gz)$", None)]
 
 
@@ -120,8 +167,9 @@ async def preparar_llama() -> Path:
     existente = binario_llama()
     if existente:
         return existente
-    motor = CONFIG["rutas"]["motor"]
     v = variante()
+    motor = CONFIG["rutas"]["motor"] / v
+    motor.mkdir(parents=True, exist_ok=True)
     await hub.emitir("preparacion", activo=True, texto=f"Buscando llama.cpp ({v})", progreso=0)
     async with httpx.AsyncClient(timeout=httpx.Timeout(60, read=300)) as c:
         r = await c.get(GH_RELEASES, headers={"Accept": "application/vnd.github+json"})

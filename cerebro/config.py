@@ -7,7 +7,7 @@ from pathlib import Path
 
 import yaml
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 
 def raiz_app() -> Path:
@@ -50,8 +50,9 @@ def _cargar() -> dict:
         rutas[clave] = p
     cfg.setdefault("llama", {})
     # Paquetes (AppImage, portable de Windows) indican aquí su llama-server incluido
+    # Lista de llama-server incluidos (CUDA, ROCm, Vulkan…): Cerebro prueba cuál ve la GPU
     if os.environ.get("CEREBRO_LLAMA"):
-        cfg["llama"]["binario"] = os.environ["CEREBRO_LLAMA"]
+        cfg["llama"]["incluidos"] = [p for p in os.environ["CEREBRO_LLAMA"].split(os.pathsep) if p]
     if os.environ.get("CEREBRO_OFFLINE") == "1":
         cfg["llama"]["sin_conexion"] = True
     cfg.setdefault("voz", {})
