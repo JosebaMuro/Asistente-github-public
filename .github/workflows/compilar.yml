@@ -54,8 +54,14 @@ jobs:
     runs-on: ubuntu-24.04
     permissions: { contents: write }
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with: { path: salida, merge-multiple: true }
+      - name: Manuales y código fuente
+        run: |
+          V=${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.version }}
+          cp docs/*.pdf salida/
+          git archive --format=zip --prefix=cerebro-local-${V#v}/ -o salida/cerebro-local-${V#v}-codigo-fuente.zip HEAD
       - uses: softprops/action-gh-release@v2
         with:
           files: "salida/*"

@@ -1,0 +1,20 @@
+name: Documentos
+# Añade los manuales PDF y el código fuente a una release ya publicada.
+on:
+  workflow_dispatch:
+    inputs:
+      version: { description: "Etiqueta de la release (p. ej. v1.1.0)", required: true }
+jobs:
+  documentos:
+    runs-on: ubuntu-24.04
+    permissions: { contents: write }
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          V=${{ inputs.version }}
+          mkdir salida && cp docs/*.pdf salida/
+          git archive --format=zip --prefix=cerebro-local-${V#v}/ -o salida/cerebro-local-${V#v}-codigo-fuente.zip HEAD
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.version }}
+          files: "salida/*"
